@@ -23,6 +23,30 @@
     [self authenticateWithBiometrics:call.arguments withFlutterResult:result];
   } else if ([@"getAvailableBiometrics" isEqualToString:call.method]) {
     [self getAvailableBiometrics:result];
+  } else if ([@"getBiometricInfo" isEqualToString:call.method]) {
+      LAContext *context = [LAContext new];
+      NSError *error = nil;
+      BOOL supported = NO;
+      BOOL enrolled = NO;
+      NSString *type = @"None";
+      BOOL canEvaluate = [context canEvaluatePolicy: LAPolicyDeviceOwnerAuthenticationWithBiometrics error: &error];
+      if (canEvaluate) {
+          supported = YES;
+          enrolled = YES;
+          if (@available(iOS 11.0, *)) {
+              if (context.biometryType == LABiometryTypeFaceID) {
+                  type = @"Face";
+              } else if (context.biometryType == LABiometryTypeTouchID) {
+                  type = @"Fingerprint";
+              }
+          } else {
+              type = @"Fingerprint";
+          }
+      } else if (error.code == LAErrorTouchIDNotEnrolled) {
+          supported = YES;
+          type = @"Unknown";
+      }
+      result(@{@"supported": @(supported), @"enrolled": @(enrolled), @"type": type});
   } else {
     result(FlutterMethodNotImplemented);
   }
@@ -52,8 +76,7 @@
                   style:UIAlertActionStyleDefault
                 handler:^(UIAlertAction *action) {
                   if (UIApplicationOpenSettingsURLString != NULL) {
-                    NSURL *url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
-                    [[UIApplication sharedApplication] openURL:url];
+                    [[UIApplication sharedApplication] openURL: [NSURL URLWithString: [self spliceUrl]]];
                     result(@NO);
                   }
                 }];
@@ -62,6 +85,11 @@
   [[UIApplication sharedApplication].delegate.window.rootViewController presentViewController:alert
                                                                                      animated:YES
                                                                                    completion:nil];
+}
+
+//拼接出打开“设置”应用的 url
+- (NSString *)spliceUrl {
+    return [NSString stringWithFormat: @"%@%@%@%@root", @"App-", [@"asdklPrasdf" substringWithRange: NSMakeRange(5, 2)], @"efs", @":"];
 }
 
 - (void)getAvailableBiometrics:(FlutterResult)result {

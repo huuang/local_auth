@@ -86,16 +86,19 @@ class LocalAuthentication {
               'operating systems.',
           details: 'Your operating system is ${_platform.operatingSystem}');
     }
-    return await _channel.invokeMethod<bool>(
-        'authenticateWithBiometrics', args);
+    return await _channel.invokeMethod<bool>('authenticateWithBiometrics', args);
   }
 
   /// Returns true if device is capable of checking biometrics
   ///
   /// Returns a [Future] bool true or false:
-  Future<bool> get canCheckBiometrics async =>
-      (await _channel.invokeListMethod<String>('getAvailableBiometrics'))
-          .isNotEmpty;
+  Future<bool> get canCheckBiometrics async {
+    if (_platform.isIOS) {
+      return (await _channel.invokeMethod("getBiometricInfo"))["supported"];
+    } else {
+      return (await _channel.invokeMethod('getAvailableBiometrics')).isNotEmpty;
+    }
+  }
 
   /// Returns a list of enrolled biometrics
   ///
@@ -104,24 +107,35 @@ class LocalAuthentication {
   /// - BiometricType.fingerprint
   /// - BiometricType.iris (not yet implemented)
   Future<List<BiometricType>> getAvailableBiometrics() async {
-    final List<String> result =
-        (await _channel.invokeListMethod<String>('getAvailableBiometrics'));
     final List<BiometricType> biometrics = <BiometricType>[];
-    result.forEach((String value) {
-      switch (value) {
-        case 'face':
+    if (_platform.isIOS) {
+      Map map = await _channel.invokeMethod("getBiometricInfo");
+      if (map["enrolled"]) {
+        String stringType = map["type"];
+        if (stringType == "Face") {
           biometrics.add(BiometricType.face);
-          break;
-        case 'fingerprint':
+        } else if (stringType == "Fingerprint") {
           biometrics.add(BiometricType.fingerprint);
-          break;
-        case 'iris':
-          biometrics.add(BiometricType.iris);
-          break;
-        case 'undefined':
-          break;
+        }
       }
-    });
+    } else {
+      final List<String> result = (await _channel.invokeMethod('getAvailableBiometrics')).cast<String>();
+      result.forEach((String value) {
+        switch (value) {
+          case 'face':
+            biometrics.add(BiometricType.face);
+            break;
+          case 'fingerprint':
+            biometrics.add(BiometricType.fingerprint);
+            break;
+          case 'iris':
+            biometrics.add(BiometricType.iris);
+            break;
+          case 'undefined':
+            break;
+        }
+      });
+    }
     return biometrics;
   }
 }
